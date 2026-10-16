@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleep Detection System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .video-section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .video-container {
+            background: black;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        #videoFeed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .status-section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .status-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .status-title {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #ddd;
+        }
+        
+        .status-value {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        
+        .awake { color: #4ade80; }
+        .sleep { color: #f87171; }
+        .warning { color: #fbbf24; }
+        
+        .indicator-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .indicator-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .esp-section {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .esp-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .connected { background: #4ade80; box-shadow: 0 0 10px #4ade80; }
+        .disconnected { background: #f87171; box-shadow: 0 0 10px #f87171; }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 5px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .command-input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            margin: 10px 0;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .alert-danger {
+            background: rgba(248, 113, 113, 0.3);
+            border: 1px solid #f87171;
+        }
+        
+        .alert-success {
+            background: rgba(74, 222, 128, 0.3);
+            border: 1px solid #4ade80;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 Driver Sleep Detection System</h1>
+        
+        <div id="sleepAlert" class="alert alert-danger">
+            ⚠️ SLEEP DETECTED! STOP command sent to vehicle!
+        </div>
+        
+        <div id="espAlert" class="alert alert-success">
+            ✅ ESP32 Connected Successfully!
+        </div>
+        
+        <div class="main-content">
+            <!-- Video Section -->
+            <div class="video-section">
+                <div class="video-container">
+                    <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Video Feed">
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button onclick="recalibrate()">🔄 Recalibrate</button>
+                </div>
+            </div>
+            
+            <!-- Status Section -->
+            <div class="status-section">
+                <div class="status-card">
+                    <div class="status-title">👤 Driver Status</div>
+                    <div id="driverStatus" class="status-value awake">Awake</div>
+                    
+                    <div class="indicator-bar">
+                        <div id="eyeIndicator" class="indicator-fill" style="width: 0%; background: #4ade80;"></div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>EAR Value: <span id="earValue">0.0</span></span>
+                        <span>Threshold: <span id="thresholdValue">15.0</span></span>
+                    </div>
+                </div>
+                
+                <div class="status-card">
+                    <div class="status-title">⏱️ Detection Time</div>
+                    <div id="detectionTime" class="status-value">0.0s</div>
+                    <div style="font-size: 0.9em; margin-top: 10px;">
+                        Eyes must stay closed for 3 seconds
+                    </div>
+                </div>
+                
+                <!-- ESP32 Control Section -->
+                <div class="esp-section">
+                    <div class="status-title">� ESP32 WiFi Control</div>
+                    
+                    <div class="esp-status">
+                        <span id="espStatusDot" class="status-dot disconnected"></span>
+                        <span id="espStatusText">ESP32 Disconnected</span>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <input type="text" id="espIP" class="command-input" placeholder="ESP32 IP Address (e.g., 192.168.1.100)">
+                        <button onclick="connectESP()" style="width: 100%;">🔗 Connect ESP32</button>
+                    </div>
+                    
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px;">
+                        <button onclick="sendESPCommand('STOP')" id="stopBtn">🛑 STOP</button>
+                        <button onclick="sendESPCommand('RESUME')" id="resumeBtn">▶️ RESUME</button>
+                        <button onclick="sendESPCommand('SPEED')">📊 SPEED</button>
+                        <button onclick="sendESPCommand('STATUS')">📡 STATUS</button>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <input type="text" id="customCommand" class="command-input" placeholder="Custom command...">
+                        <button onclick="sendCustomCommand()" style="width: 100%;">Send Command</button>
+                    </div>
+                    
+                    <div id="espResponse" style="margin-top: 15px; font-size: 0.9em; color: #ddd;">
+                        Last response: None
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update status every 500ms
+        setInterval(updateStatus, 500);
+        
+        let sleepDetected = false;
+        
+        function updateStatus() {
+    fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+            // Update driver status
+            const driverStatus = document.getElementById('driverStatus');
+            const eyeIndicator = document.getElementById('eyeIndicator');
+            const earValue = document.getElementById('earValue');
+            const thresholdValue = document.getElementById('thresholdValue');
+            const detectionTime = document.getElementById('detectionTime'); // 👈 NEW
+            
+            earValue.textContent = data.ear_value.toFixed(1);
+            thresholdValue.textContent = data.threshold.toFixed(1);
+            
+            // 👇 UPDATE DETECTION TIME
+            if (data.eyes_closed_duration > 0) {
+                detectionTime.textContent = data.eyes_closed_duration.toFixed(1) + 's';
+                detectionTime.style.color = '#f87171';
+            } else {
+                detectionTime.textContent = '0.0s';
+                detectionTime.style.color = 'white';
+            }
+            
+            // Update indicator bar
+            const indicatorWidth = Math.min((data.ear_value / (data.threshold * 2)) * 100, 100);
+            eyeIndicator.style.width = indicatorWidth + '%';
+            
+            if (data.sleep_detected) {
+                driverStatus.textContent = 'SLEEP DETECTED!';
+                driverStatus.className = 'status-value sleep';
+                eyeIndicator.style.background = '#f87171';
+                document.getElementById('sleepAlert').style.display = 'block';
+                
+                if (!sleepDetected) {
+                    sleepDetected = true;
+                    playAlert();
+                }
+            } else {
+                driverStatus.textContent = 'Awake';
+                driverStatus.className = 'status-value awake';
+                eyeIndicator.style.background = '#4ade80';
+                document.getElementById('sleepAlert').style.display = 'none';
+                sleepDetected = false;
+            }
+            
+            // Update ESP32 status
+            const espStatusDot = document.getElementById('espStatusDot');
+            const espStatusText = document.getElementById('espStatusText');
+            
+            if (data.esp_connected) {
+                espStatusDot.className = 'status-dot connected';
+                espStatusText.textContent = 'ESP32 Connected';
+                espStatusText.style.color = '#4ade80';
+            } else {
+                espStatusDot.className = 'status-dot disconnected';
+                espStatusText.textContent = 'ESP32 Disconnected';
+                espStatusText.style.color = '#f87171';
+            }
+        })
+        .catch(error => console.error('Error:', error));
+}
+        
+        function recalibrate() {
+            fetch('/api/calibrate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Calibration started! Keep your eyes open.');
+            })
+            .catch(error => console.error('Error:', error));
+        }
+        
+        function connectESP() {
+            const ip = document.getElementById('espIP').value.trim();
+            if (!ip) {
+                alert('Please enter ESP32 IP address');
+                return;
+            }
+            
+            fetch('/api/connect_esp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ ip: ip })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const alert = document.getElementById('espAlert');
+                if (data.connected) {
+                    alert.style.display = 'block';
+                    alert.textContent = `✅ ESP32 Connected at ${data.ip}`;
+                    setTimeout(() => alert.style.display = 'none', 3000);
+                } else {
+                    alert.style.display = 'block';
+                    alert.className = 'alert alert-danger';
+                    alert.textContent = '❌ ESP32 connection failed. Check IP address!';
+                    setTimeout(() => alert.style.display = 'none', 3000);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+        
+        function sendESPCommand(command) {
+            fetch('/api/send_command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command: command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('espResponse').textContent = 
+                    `Last response: Sent ${data.command} - ${data.success ? '✅' : '❌'}`;
+            })
+            .catch(error => console.error('Error:', error));
+        }
+        
+        function sendCustomCommand() {
+            const command = document.getElementById('customCommand').value;
+            if (command) {
+                sendESPCommand(command);
+                document.getElementById('customCommand').value = '';
+            }
+        }
+        
+        function playAlert() {
+            // Browser alert sound
+            const audio = new Audio('data:audio/wav;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCB//Hc0DA0MDAyMjIyD8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8/Pz8P');
+            audio.play().catch(e => console.log('Audio play failed:', e));
+        }
+        
+        // ESP32 connection is now manual via IP input
+    </script>
+</body>
+</html>
+"@ | Out-File -FilePath templates/index.html -Encoding utf8
